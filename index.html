@@ -7,17 +7,23 @@
   <style>
     :root{--bg:#0f172a;--card:#111827;--text:#e5e7eb;--muted:#94a3b8;--up:#22c55e;--down:#ef4444;--accent:#38bdf8}
     *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui; background:#0f172a;color:var(--text)}
-    header{max-width:1000px;margin:20px auto;padding:0 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    header{max-width:1100px;margin:20px auto;padding:0 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
     h1{margin:0;font-size:24px} .badge{color:var(--muted);font-size:13px}
-    table{border-collapse:collapse;width:100%;max-width:1000px;margin:10px auto;background:var(--card);border:1px solid #1f2937;border-radius:12px;overflow:hidden}
-    th,td{padding:10px 12px;text-align:left} th{cursor:pointer;color:var(--accent);user-select:none;background:#0b1223;position:sticky;top:0}
+    table{border-collapse:collapse;width:100%;max-width:1100px;margin:10px auto;background:var(--card);border:1px solid #1f2937;border-radius:12px;overflow:hidden}
+    th,td{padding:10px 12px;text-align:left;vertical-align:middle}
+    th{cursor:pointer;color:var(--accent);user-select:none;background:#0b1223;position:sticky;top:0}
     tr:nth-child(even){background:#0f1626}
     .up{color:var(--up)} .down{color:var(--down)}
     .flag{font-size:18px;margin-right:6px}
-    footer{max-width:1000px;margin:24px auto;padding:0 16px;color:var(--muted);font-size:13px}
+    footer{max-width:1100px;margin:24px auto;padding:0 16px;color:var(--muted);font-size:13px}
     .right{text-align:right}
-    .loading{max-width:1000px;margin:20px auto;padding:12px 16px;color:var(--muted)}
+    .loading{max-width:1100px;margin:20px auto;padding:12px 16px;color:var(--muted)}
     .pill{display:inline-block;border:1px solid #243042;border-radius:999px;padding:4px 8px;font-size:12px;color:var(--muted);margin-left:8px}
+    /* Sparkline */
+    .spark svg{width:140px;height:36px;display:block}
+    .spark .axis{stroke:#1f2937;stroke-width:1}
+    .spark .line{fill:none;stroke-width:2}
+    .spark .up{stroke:var(--up)} .spark .down{stroke:var(--down)}
   </style>
 </head>
 <body>
@@ -31,6 +37,7 @@
       <tr>
         <th onclick="setSort('name')">Coin (Pays)</th>
         <th onclick="setSort('price')" class="right">Cours (°C)</th>
+        <th>Sparkline 24h</th>
         <th onclick="setSort('change')" class="right">Variation 24h</th>
         <th onclick="setSort('cap')" class="right">Cap météo</th>
       </tr>
@@ -43,7 +50,7 @@
   <footer>
     Source : <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (pas de clé, gratuit).  
     “Cours” = température actuelle. “Variation 24h” = différence vs hier, même heure.  
-    “Cap météo” = temp × (1 + vent/100) — un score fun pour trier.
+    “Cap météo” = temp × (1 + vent/100). Sparkline = 24 dernières heures.
   </footer>
 
 <script>
@@ -64,10 +71,34 @@ const COINS = [
 ];
 
 /** --- State + rendering --- */
-let ticks = [];           // {name, price, change, cap}
+let ticks = [];           // {name, price, change, cap, temps24:number[]}
 let sortBy = 'cap';
 
 function setSort(k){ sortBy=k; render(); }
+
+/** Sparkline générateur (SVG inline) */
+function sparkSVG(arr, change){
+  if(!arr || arr.length < 2) return '';
+  const w=140, h=36, pad=3;
+  const min = Math.min(...arr);
+  const max = Math.max(...arr);
+  const span = (max-min) || 1;
+  const N = arr.length;
+  const X = i => pad + (i*(w-2*pad))/(N-1);
+  const Y = v => h - (pad + ((v-min)* (h-2*pad)/span));
+
+  let d = `M ${X(0).toFixed(2)} ${Y(arr[0]).toFixed(2)}`;
+  for(let i=1;i<N;i++) d += ` L ${X(i).toFixed(2)} ${Y(arr[i]).toFixed(2)}`;
+
+  const cls = change==null ? '' : (change>=0 ? 'up' : 'down');
+  const mid = Y(arr[N-1]); // point final pour la ligne verticale (optionnel)
+  return `
+    <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+      <path class="axis" d="M ${pad} ${Y(min)} H ${w-pad}"></path>
+      <path class="line ${cls}" d="${d}"></path>
+    </svg>
+  `;
+}
 
 function render(){
   const tbody = document.getElementById('body');
@@ -87,6 +118,7 @@ function render(){
       <tr>
         <td><span class="flag">${x.flag}</span>${x.name}</td>
         <td class="right">${x.price.toFixed(1)}°C</td>
+        <td class="spark">${sparkSVG(x.temps24, x.change)}</td>
         <td class="right ${chClass}">${chTxt}</td>
         <td class="right">${x.cap.toFixed(2)}</td>
       </tr>
@@ -106,7 +138,7 @@ async function fetchCity(c){
   url.searchParams.set('hourly', 'temperature_2m');
   url.searchParams.set('past_days', '1');           // hier
   url.searchParams.set('forecast_days', '1');       // aujourd'hui
-  url.searchParams.set('timezone', 'auto');         // calcule selon lat/lon
+  url.searchParams.set('timezone', 'auto');         // fuseau local
 
   const res = await fetch(url.toString());
   if(!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -114,20 +146,27 @@ async function fetchCity(c){
 
   const nowTemp = js.current_weather?.temperature;      // °C
   const wind = js.current_weather?.windspeed ?? 0;      // km/h
-  const nowTime = js.current_weather?.time;             // ISO string
+  const nowTime = js.current_weather?.time;             // ISO
 
-  // On récupère la température "hier, même heure"
+  const times = js.hourly?.time || [];
+  const temps = js.hourly?.temperature_2m || [];
+
+  // Trouve l'index de l'heure courante dans la série, fallback = dernier point
+  let idxNow = times.indexOf(nowTime);
+  if (idxNow === -1) idxNow = times.length - 1;
+
+  // Série des 24 dernières heures (incluant maintenant si possible)
+  let temps24 = [];
+  if (idxNow >= 0) {
+    const start = Math.max(0, idxNow - 23);
+    temps24 = temps.slice(start, idxNow + 1);
+  }
+  // Variation 24h = maintenant - (il y a 24h)
   let change = null;
-  try{
-    const times = js.hourly?.time || [];
-    const temps = js.hourly?.temperature_2m || [];
-    const idxNow = times.indexOf(nowTime);
-    if(idxNow >= 24 && temps[idxNow] != null && temps[idxNow-24] != null){
-      change = nowTemp - temps[idxNow-24];
-    }
-  }catch(e){ /* ignore */ }
+  if (idxNow >= 24 && Number.isFinite(nowTemp) && Number.isFinite(temps[idxNow-24])) {
+    change = nowTemp - temps[idxNow-24];
+  }
 
-  // Cap météo : un score fun basé sur la temp et le vent
   const cap = (nowTemp ?? 0) * (1 + (wind/100));
 
   return {
@@ -135,7 +174,8 @@ async function fetchCity(c){
     flag: c.flag,
     price: nowTemp ?? Number.NaN,
     change,
-    cap
+    cap,
+    temps24
   };
 }
 
@@ -152,17 +192,13 @@ async function loadAll(){
     .filter(x=>Number.isFinite(x.price));
 
   const fails = results.filter(r=>r.status==='rejected').length;
-  if(fails>0) {
-    loading.textContent = `OK (${ticks.length}) · ${fails} échec(s) API`;
-  } else {
-    loading.textContent = '';
-  }
+  loading.textContent = fails>0 ? `OK (${ticks.length}) · ${fails} échec(s) API` : '';
   render();
 }
 
 // Première charge + refresh périodique
 loadAll();
-setInterval(loadAll, 5*60*1000); // toutes les 5 minutes
+setInterval(loadAll, 5*60*1000); // 5 minutes
 </script>
 </body>
 </html>
