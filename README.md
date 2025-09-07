@@ -25,7 +25,7 @@ Hébergé avec GitHub Pages, basé sur l’API publique [Open-Meteo](https://ope
    cd meteo-market
 ````
 
-2. Le projet est **100% statique** : ouvre `index.html` dans ton navigateur pour tester en local.
+2. Le projet est 100% statique : ouvre `index.html` dans ton navigateur pour tester en local.
 
 3. Pour le mettre en production :
 
@@ -40,30 +40,16 @@ Hébergé avec GitHub Pages, basé sur l’API publique [Open-Meteo](https://ope
 ## Données
 
 * API utilisée : [Open-Meteo Forecast](https://open-meteo.com/)
-* Villes suivies par défaut :
-
-  * Paris 🇫🇷
-  * Londres 🇬🇧
-  * Berlin 🇩🇪
-  * Madrid 🇪🇸
-  * Rome 🇮🇹
-  * New York 🇺🇸
-  * Tokyo 🇯🇵
-  * Sydney 🇦🇺
-  * Le Caire 🇪🇬
-  * São Paulo 🇧🇷
-  * Mexico 🇲🇽
-  * Delhi 🇮🇳
 
 ---
 
-## ✨ Fonctionnalités
+## Fonctionnalités
 
-* 🔄 Données auto-refresh toutes les 5 minutes
-* 📈 Sparkline 24h avec tooltip au survol (valeur + timestamp)
-* 🟢 Variation positive en vert, 🔴 négative en rouge
-* 📊 Tri des colonnes : Nom, Température, Variation, Cap météo
-* ⚡ Aucune dépendance JS externe (tout en vanilla HTML/JS)
+* Données auto-refresh toutes les 5 minutes
+* Sparkline 24h avec tooltip au survol (valeur + timestamp)
+* Variation positive en vert, négative en rouge
+* Tri des colonnes : Nom, Température, Variation, Cap météo
+* Aucune dépendance JS externe (tout en vanilla HTML/JS)
 
 ---
 
