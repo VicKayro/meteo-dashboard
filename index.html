@@ -6,7 +6,8 @@
   <title>Météo Market 🪙</title>
   <style>
     :root{--bg:#0f172a;--card:#111827;--text:#e5e7eb;--muted:#94a3b8;--up:#22c55e;--down:#ef4444;--accent:#38bdf8}
-    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui; background:#0f172a;color:var(--text)}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial; background:#0f172a;color:var(--text)}
     header{max-width:1100px;margin:20px auto;padding:0 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
     h1{margin:0;font-size:24px} .badge{color:var(--muted);font-size:13px}
     table{border-collapse:collapse;width:100%;max-width:1100px;margin:10px auto;background:var(--card);border:1px solid #1f2937;border-radius:12px;overflow:hidden}
@@ -19,11 +20,24 @@
     .right{text-align:right}
     .loading{max-width:1100px;margin:20px auto;padding:12px 16px;color:var(--muted)}
     .pill{display:inline-block;border:1px solid #243042;border-radius:999px;padding:4px 8px;font-size:12px;color:var(--muted);margin-left:8px}
+
     /* Sparkline */
     .spark svg{width:140px;height:36px;display:block}
     .spark .axis{stroke:#1f2937;stroke-width:1}
     .spark .line{fill:none;stroke-width:2}
     .spark .up{stroke:var(--up)} .spark .down{stroke:var(--down)}
+
+    /* Tooltip + zone d'interaction */
+    #tip{
+      position:fixed; z-index:9999; display:none;
+      background:#0b1223; color:#e5e7eb;
+      border:1px solid #1f2937; border-radius:8px;
+      padding:6px 8px; font-size:12px; pointer-events:none;
+      box-shadow:0 6px 24px rgba(0,0,0,.35);
+      white-space:nowrap;
+    }
+    .spark .marker{ fill:#e5e7eb; stroke:#0b1223; stroke-width:1.2; display:none }
+    .spark .hit{ fill:transparent; pointer-events:all }
   </style>
 </head>
 <body>
@@ -46,6 +60,7 @@
   </table>
 
   <div class="loading" id="loading">Fetching les ticks météo…</div>
+  <div id="tip"></div>
 
   <footer>
     Source : <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (pas de clé, gratuit).  
@@ -71,13 +86,13 @@ const COINS = [
 ];
 
 /** --- State + rendering --- */
-let ticks = [];           // {name, price, change, cap, temps24:number[]}
+let ticks = [];           // {name, price, change, cap, temps24:number[], times24:string[]}
 let sortBy = 'cap';
 
 function setSort(k){ sortBy=k; render(); }
 
-/** Sparkline générateur (SVG inline) */
-function sparkSVG(arr, change){
+/** Sparkline avec data-attrs + zone d'interaction */
+function sparkSVG(arr, times, change){
   if(!arr || arr.length < 2) return '';
   const w=140, h=36, pad=3;
   const min = Math.min(...arr);
@@ -91,11 +106,18 @@ function sparkSVG(arr, change){
   for(let i=1;i<N;i++) d += ` L ${X(i).toFixed(2)} ${Y(arr[i]).toFixed(2)}`;
 
   const cls = change==null ? '' : (change>=0 ? 'up' : 'down');
-  const mid = Y(arr[N-1]); // point final pour la ligne verticale (optionnel)
+
+  const dataTemps = arr.join(' ');
+  const dataTimes = (times || []).join(' ');
+
   return `
-    <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+    <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"
+         data-temps="${dataTemps}" data-times="${dataTimes}"
+         data-min="${min}" data-max="${max}">
       <path class="axis" d="M ${pad} ${Y(min)} H ${w-pad}"></path>
       <path class="line ${cls}" d="${d}"></path>
+      <circle class="marker" r="2.5" cx="${X(N-1)}" cy="${Y(arr[N-1])}"></circle>
+      <rect class="hit" x="0" y="0" width="${w}" height="${h}"></rect>
     </svg>
   `;
 }
@@ -118,7 +140,7 @@ function render(){
       <tr>
         <td><span class="flag">${x.flag}</span>${x.name}</td>
         <td class="right">${x.price.toFixed(1)}°C</td>
-        <td class="spark">${sparkSVG(x.temps24, x.change)}</td>
+        <td class="spark">${sparkSVG(x.temps24, x.times24, x.change)}</td>
         <td class="right ${chClass}">${chTxt}</td>
         <td class="right">${x.cap.toFixed(2)}</td>
       </tr>
@@ -127,6 +149,69 @@ function render(){
 
   table.hidden = false;
   status.textContent = `Dernière maj : ${new Date().toLocaleTimeString()} · ${ticks.length} coins`;
+
+  // active tooltips pour tous les sparklines rendus
+  attachTooltips();
+}
+
+/** --- Tooltip utils --- */
+const TIP = document.getElementById('tip');
+
+function yFrom(v, min, max, h=36, pad=3){
+  const span = (max-min) || 1;
+  return h - (pad + ((v-min)*(h-2*pad)/span));
+}
+
+function attachTooltips(){
+  document.querySelectorAll('.spark svg').forEach(svg=>{
+    const temps = (svg.dataset.temps || '').split(' ').map(parseFloat).filter(n=>!Number.isNaN(n));
+    const times = (svg.dataset.times || '').split(' ');
+    if(temps.length < 2) return;
+
+    const w=140, h=36, pad=3, N=temps.length;
+    const xToIndex = (x) => {
+      const t = Math.round((x - pad) * (N-1) / (w - 2*pad));
+      return Math.max(0, Math.min(N-1, t));
+    };
+    const min = parseFloat(svg.dataset.min), max = parseFloat(svg.dataset.max);
+    const marker = svg.querySelector('.marker');
+
+    svg.addEventListener('mousemove', (e)=>{
+      const r = svg.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const i = xToIndex(x);
+      const v = temps[i];
+      const cx = pad + (i*(w-2*pad))/(N-1);
+      const cy = yFrom(v, min, max, h, pad);
+
+      // marqueur
+      marker.setAttribute('cx', cx);
+      marker.setAttribute('cy', cy);
+      marker.style.display = 'block';
+
+      // tooltip
+      const dt = times[i] ? new Date(times[i]) : null;
+      const when = dt ? dt.toLocaleString() : '';
+      TIP.textContent = `${v.toFixed(1)}°C · ${when}`;
+      TIP.style.display = 'block';
+
+      // position (évite de dépasser à droite)
+      const offsetX = 14, offsetY = 12;
+      let left = e.clientX + offsetX;
+      let top  = e.clientY + offsetY;
+      const tipRect = TIP.getBoundingClientRect();
+      const vw = window.innerWidth, vh = window.innerHeight;
+      if(left + tipRect.width > vw - 6) left = e.clientX - tipRect.width - offsetX;
+      if(top + tipRect.height > vh - 6) top = e.clientY - tipRect.height - offsetY;
+      TIP.style.left = left + 'px';
+      TIP.style.top  = top  + 'px';
+    });
+
+    svg.addEventListener('mouseleave', ()=>{
+      marker.style.display = 'none';
+      TIP.style.display = 'none';
+    });
+  });
 }
 
 /** --- Fetch Open-Meteo pour chaque ville --- */
@@ -151,16 +236,17 @@ async function fetchCity(c){
   const times = js.hourly?.time || [];
   const temps = js.hourly?.temperature_2m || [];
 
-  // Trouve l'index de l'heure courante dans la série, fallback = dernier point
   let idxNow = times.indexOf(nowTime);
   if (idxNow === -1) idxNow = times.length - 1;
 
   // Série des 24 dernières heures (incluant maintenant si possible)
-  let temps24 = [];
+  let temps24 = [], times24 = [];
   if (idxNow >= 0) {
     const start = Math.max(0, idxNow - 23);
     temps24 = temps.slice(start, idxNow + 1);
+    times24 = times.slice(start, idxNow + 1);
   }
+
   // Variation 24h = maintenant - (il y a 24h)
   let change = null;
   if (idxNow >= 24 && Number.isFinite(nowTemp) && Number.isFinite(temps[idxNow-24])) {
@@ -175,7 +261,8 @@ async function fetchCity(c){
     price: nowTemp ?? Number.NaN,
     change,
     cap,
-    temps24
+    temps24,
+    times24
   };
 }
 
