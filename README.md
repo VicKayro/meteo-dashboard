@@ -7,13 +7,13 @@ Chaque pays est une “coin” :
 - **Cap météo** = température × (1 + vent/100) → un score rigolo  
 - **Sparkline 24h** = mini-graph des 24 dernières heures  
 
-Hébergé avec **GitHub Pages**, basé sur l’API publique [Open-Meteo](https://open-meteo.com/).  
+Hébergé avec GitHub Pages, basé sur l’API publique [Open-Meteo](https://open-meteo.com/).  
 
 ---
 
 ## 🚀 Démo
 
-👉 [Lien vers le site](https://VicKayro.github.io/meteo-market/)  
+👉 [Meteo Market](https://VicKayro.github.io/meteo-market/)  
 
 ---
 
@@ -29,8 +29,8 @@ Hébergé avec **GitHub Pages**, basé sur l’API publique [Open-Meteo](https:/
 
 3. Pour le mettre en production :
 
-   * Va dans **Settings → Pages**
-   * Sélectionne **Deploy from branch**
+   * Va dans Settings → Pages
+   * Sélectionne Deploy from branch
    * Branche : `main`, Dossier : `/ (root)`
    * Sauvegarde → ton site sera dispo à l’URL :
      `https://<username>.github.io/meteo-market/`
@@ -59,8 +59,8 @@ Hébergé avec **GitHub Pages**, basé sur l’API publique [Open-Meteo](https:/
 
 ## ✨ Fonctionnalités
 
-* 🔄 Données auto-refresh toutes les **5 minutes**
-* 📈 **Sparkline 24h** avec tooltip au survol (valeur + timestamp)
+* 🔄 Données auto-refresh toutes les 5 minutes
+* 📈 Sparkline 24h avec tooltip au survol (valeur + timestamp)
 * 🟢 Variation positive en vert, 🔴 négative en rouge
 * 📊 Tri des colonnes : Nom, Température, Variation, Cap météo
 * ⚡ Aucune dépendance JS externe (tout en vanilla HTML/JS)
@@ -71,9 +71,9 @@ Hébergé avec **GitHub Pages**, basé sur l’API publique [Open-Meteo](https:/
 
 * Ajouter d’autres villes ou continents 
 * Sauvegarder la sélection de colonnes/localisation en `localStorage`
-* Ajouter un **mode clair/sombre** toggle
+* Ajouter un mode clair/sombre toggle
 * Export CSV / JSON des données
-* Ajout de **mini-cartes** (API Leaflet/OpenStreetMap)
+* Ajout de mini-cartes (API Leaflet/OpenStreetMap)
 
 ---
 
