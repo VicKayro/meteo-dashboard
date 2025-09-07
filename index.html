@@ -56,4 +56,113 @@ const COINS = [
   { country:"Italie",       city:"Rome",       flag:"🇮🇹", lat:41.9028, lon: 12.4964 },
   { country:"États-Unis",   city:"New York",   flag:"🇺🇸", lat:40.7128, lon:-74.0060 },
   { country:"Japon",        city:"Tokyo",      flag:"🇯🇵", lat:35.6762, lon:139.6503 },
-  { country:"Australie",    city:"Sydney",     flag:"
+  { country:"Australie",    city:"Sydney",     flag:"🇦🇺", lat:-33.8688,lon:151.2093 },
+  { country:"Égypte",       city:"Le Caire",   flag:"🇪🇬", lat:30.0444, lon: 31.2357 },
+  { country:"Brésil",       city:"São Paulo",  flag:"🇧🇷", lat:-23.5505,lon:-46.6333 },
+  { country:"Mexique",      city:"Mexico",     flag:"🇲🇽", lat:19.4326, lon:-99.1332 },
+  { country:"Inde",         city:"Delhi",      flag:"🇮🇳", lat:28.6139, lon: 77.2090 },
+];
+
+/** --- State + rendering --- */
+let ticks = [];           // {name, price, change, cap}
+let sortBy = 'cap';
+
+function setSort(k){ sortBy=k; render(); }
+
+function render(){
+  const tbody = document.getElementById('body');
+  const table = document.getElementById('tbl');
+  const status = document.getElementById('status');
+  if(!ticks.length){ table.hidden = true; return; }
+  let arr = [...ticks].sort((a,b)=>{
+    if (typeof a[sortBy] === 'string') return a[sortBy].localeCompare(b[sortBy]);
+    return (b[sortBy] ?? -Infinity) - (a[sortBy] ?? -Infinity);
+  });
+
+  tbody.innerHTML = arr.map(x=>{
+    const ch = x.change;
+    const chTxt = (ch==null) ? '—' : `${ch>=0?'+':''}${ch.toFixed(2)}°C`;
+    const chClass = ch==null ? '' : (ch>=0?'up':'down');
+    return `
+      <tr>
+        <td><span class="flag">${x.flag}</span>${x.name}</td>
+        <td class="right">${x.price.toFixed(1)}°C</td>
+        <td class="right ${chClass}">${chTxt}</td>
+        <td class="right">${x.cap.toFixed(2)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  table.hidden = false;
+  status.textContent = `Dernière maj : ${new Date().toLocaleTimeString()} · ${ticks.length} coins`;
+}
+
+/** --- Fetch Open-Meteo pour chaque ville --- */
+async function fetchCity(c){
+  const url = new URL('https://api.open-meteo.com/v1/forecast');
+  url.searchParams.set('latitude', c.lat);
+  url.searchParams.set('longitude', c.lon);
+  url.searchParams.set('current_weather', 'true');
+  url.searchParams.set('hourly', 'temperature_2m');
+  url.searchParams.set('past_days', '1');           // hier
+  url.searchParams.set('forecast_days', '1');       // aujourd'hui
+  url.searchParams.set('timezone', 'auto');         // calcule selon lat/lon
+
+  const res = await fetch(url.toString());
+  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+  const js = await res.json();
+
+  const nowTemp = js.current_weather?.temperature;      // °C
+  const wind = js.current_weather?.windspeed ?? 0;      // km/h
+  const nowTime = js.current_weather?.time;             // ISO string
+
+  // On récupère la température "hier, même heure"
+  let change = null;
+  try{
+    const times = js.hourly?.time || [];
+    const temps = js.hourly?.temperature_2m || [];
+    const idxNow = times.indexOf(nowTime);
+    if(idxNow >= 24 && temps[idxNow] != null && temps[idxNow-24] != null){
+      change = nowTemp - temps[idxNow-24];
+    }
+  }catch(e){ /* ignore */ }
+
+  // Cap météo : un score fun basé sur la temp et le vent
+  const cap = (nowTemp ?? 0) * (1 + (wind/100));
+
+  return {
+    name: `${c.country} (${c.city})`,
+    flag: c.flag,
+    price: nowTemp ?? Number.NaN,
+    change,
+    cap
+  };
+}
+
+async function loadAll(){
+  const loading = document.getElementById('loading');
+  const status = document.getElementById('status');
+  loading.textContent = 'Fetching les ticks météo…';
+  status.textContent = 'Chargement…';
+
+  const results = await Promise.allSettled(COINS.map(fetchCity));
+  ticks = results
+    .filter(r=>r.status==='fulfilled')
+    .map(r=>r.value)
+    .filter(x=>Number.isFinite(x.price));
+
+  const fails = results.filter(r=>r.status==='rejected').length;
+  if(fails>0) {
+    loading.textContent = `OK (${ticks.length}) · ${fails} échec(s) API`;
+  } else {
+    loading.textContent = '';
+  }
+  render();
+}
+
+// Première charge + refresh périodique
+loadAll();
+setInterval(loadAll, 5*60*1000); // toutes les 5 minutes
+</script>
+</body>
+</html>
