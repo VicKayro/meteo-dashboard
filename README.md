@@ -11,9 +11,9 @@ Hébergé avec GitHub Pages, basé sur l’API publique [Open-Meteo](https://ope
 
 ---
 
-## 🚀 Démo
+## Démo
 
-👉 [Meteo Market]([https://VicKayro.github.io/meteo-market/](https://vickayro.github.io/meteo-dashboard/))  
+👉 [Meteo Market]((https://vickayro.github.io/meteo-dashboard/))  
 
 ---
 
